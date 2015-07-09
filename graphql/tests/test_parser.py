@@ -86,6 +86,6 @@ class TestParser(TestCase):
 							'field_name': 'two'
 						}
 					], 
-				'id': '12'}
+				'ad_name': 'adriel'}
 			}
 		self.assertEqual(graphql.parser(string_model), returned_model)
