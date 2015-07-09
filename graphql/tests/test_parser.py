@@ -61,3 +61,31 @@ class TestParser(TestCase):
 				'id': '12'}
 			}
 		self.assertEqual(graphql.parser(string_model), returned_model)
+		string_model = """{User (ad_name:adriel) {one {one_sub1,one-sub2}, two {sub1}}"""
+		self.assertTrue(isinstance(graphql.parser(string_model), dict))
+		returned_model = {'User': 
+			{
+				'fields': 
+					[
+						{
+							'child_fields': 
+								[
+									{'child_fields': [], 'field_name': 'one_sub1'}, 
+									{'child_fields': [], 'field_name': 'one-sub2'}
+								], 
+							'field_name': 'one'
+						}, 
+						{
+							'child_fields': 
+								[
+									{
+										'child_fields': [], 
+										'field_name': 'sub1'
+									}
+								], 
+							'field_name': 'two'
+						}
+					], 
+				'id': '12'}
+			}
+		self.assertEqual(graphql.parser(string_model), returned_model)
