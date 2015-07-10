@@ -1,6 +1,8 @@
 from sqlalchemy import Column, ForeignKey, Integer, String
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
  
 Base = declarative_base()
  
@@ -21,3 +23,20 @@ class Address(Base):
     post_code = Column(String(250), nullable=False)
     person_id = Column(Integer, ForeignKey('person.id'))
     person = relationship(Person)
+
+
+engine = create_engine('sqlite:///sqlalchemy_example.db')
+
+Base.metadata.create_all(engine)
+
+Base.metadata.bind = engine
+ 
+DBSession = sessionmaker(bind=engine)
+# A DBSession() instance establishes all conversations with the database
+# and represents a "staging zone" for all the objects loaded into the
+# database session object. Any change made against the objects in the
+# session won't be persisted into the database until you call
+# session.commit(). If you're not happy about the changes, you can
+# revert all of them back to the last commit by calling
+# session.rollback()
+session = DBSession()

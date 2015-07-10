@@ -1,7 +1,7 @@
 from parsimonious.grammar import Grammar
 
 grammar = Grammar("""
-     root =         WS OPEN_CURLY object_name WS OPEN_ROUND WS object_parameter COLON object_id WS CLOSE_ROUND WS WS object WS
+     root =         WS object_name WS OPEN_ROUND WS object_parameter COLON object_id WS CLOSE_ROUND WS WS object WS
      object = OPEN_CURLY WS field_list WS CLOSE_CURLY
      WS =           ~"\s*"
      OPEN_CURLY =   "{"
@@ -10,10 +10,10 @@ grammar = Grammar("""
      CLOSE_ROUND =   ")"
      COMMA = ","
      COLON = ":"
-     object_name =  ~"[A-Z0-9]*"i
-     object_id =    ~"[A-Z0-9]*"i
+     object_name =  ~"[A-Z0-9_-]*"i
+     object_id =    ~"[A-Z0-9_-]*"i
      object_parameter = ~"[A-Z0-9_-]*"i
-     name =         ~"[A-Z0-9]*"i
+     name =         ~"[A-Z0-9_-]*"i
      field_name =   ~"[A-Z0-9_-]*"i
      field_list = field WS (COMMA WS field)*
      field = field_name WS optional_object
