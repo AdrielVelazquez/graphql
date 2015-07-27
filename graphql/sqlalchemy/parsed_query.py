@@ -11,10 +11,15 @@ def alchemy_data(graphql):
 	'''
 	#{'Address': {'fields': [{'child_fields': [], 'field_name': 'street_number'}, {'child_fields': [], 'field_name': 'street_name'}], 'id': '1'}}
 	graph_model = parser(graphql)
-	select, where = generate_model_and_restraints(graph_model)
+	select, where, joins = generate_model_and_restraints(graph_model)
 	gsession = model_registry.get("graphql_session")
-	results = gsession.query(*select).filter(*where).all()
-	return results
+	results = gsession.query(*select)
+	if joins:
+		for join in joins:
+			results = results.join(join)
+	if where:
+		results.filter(*where)
+	return results.all()
 
 
 def generate_model_and_restraints(graph_model):
@@ -31,7 +36,7 @@ def generate_model_and_restraints(graph_model):
 		raise ValueError("Defined model ({}) doesn't exist".format(main_model))
 	fields = graph_model.get(main_model).get("fields")
 	select, joins = generate_select_joins(fields, alchemy_model)
-	return select, where
+	return select, where, joins
 
 
 
