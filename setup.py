@@ -8,6 +8,7 @@ setup(name='graphql',
       author_email='adriel@set.tv',
       test_suite='nose.collector',
       tests_require=['nose'],
+      install_requires=["SQLAlchemy"],
       license='MIT',
       packages=['graphql'],
       zip_safe=False)
