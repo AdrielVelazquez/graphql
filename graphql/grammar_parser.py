@@ -19,7 +19,7 @@ grammar = Grammar("""
      name =         ~"[A-Z0-9_-]*"i
      field_name =   ~"[A-Z0-9_-]*"i
      field_list = field WS (COMMA WS field)*
-     field = field_name WS optional_object
+     field = optional_alias WS field_name WS optional_object
      optional_alias = alias?
      optional_object = object?
 """)
@@ -35,17 +35,17 @@ def filter_tokens(node):
 
 
 def convert_field(ast):
-    (field_name, _, optional_object) = ast
+    (alias, _, field_name, _, optional_object) = ast
 
     child_fields = [] if len(optional_object.children) == 0 else (
         convert_object(optional_object.children[0])
     )
-
-    return {
-        'field_name': field_name.text,
-        'child_fields': child_fields
-    }
-
+    convert_field_dict = {}
+    if alias.text:
+        convert_field_dict["alias"] = alias.text.strip(":")
+    convert_field_dict["field_name"] = field_name.text
+    convert_field_dict["child_fields"] = child_fields
+    return convert_field_dict
 
 def convert_object(ast):
     head, rest = filter(filter_tokens, filter(filter_tokens, ast.children)[0])
@@ -62,7 +62,7 @@ def convert_root_object(ast):
     (alias, object_name, attributes, my_object) = filter(filter_tokens, ast.children)
     converted_dict = {}
     if alias.text:
-        converted_dict["alias"] = alias.text
+        converted_dict["alias"] = alias.text.strip(":")
     converted_dict[object_name.text] = {'fields': convert_object(my_object),
         #object_parameter.text: object_id.text
     }
