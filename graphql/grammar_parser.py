@@ -1,7 +1,7 @@
 from parsimonious.grammar import Grammar
 
 grammar = Grammar("""
-     root =         WS object_name WS OPEN_ROUND WS object_parameter COLON object_id WS CLOSE_ROUND WS WS object WS
+     root =         OPEN_CURLY optional_alias WS object_name WS OPEN_ROUND WS multi_attribute WS CLOSE_ROUND WS WS object WS CLOSE_CURLY
      object = OPEN_CURLY WS field_list WS CLOSE_CURLY
      WS =           ~"\s*"
      OPEN_CURLY =   "{"
@@ -10,6 +10,9 @@ grammar = Grammar("""
      CLOSE_ROUND =   ")"
      COMMA = ","
      COLON = ":"
+     alias = object_name COLON
+     attribute = object_parameter COLON object_id COMMA?
+     multi_attribute = attribute+
      object_name =  ~"[A-Z0-9_-]*"i
      object_id =    ~"[A-Z0-9_-]*"i
      object_parameter = ~"[A-Z0-9_-]*"i
@@ -17,6 +20,7 @@ grammar = Grammar("""
      field_name =   ~"[A-Z0-9_-]*"i
      field_list = field WS (COMMA WS field)*
      field = field_name WS optional_object
+     optional_alias = alias?
      optional_object = object?
 """)
 
@@ -55,26 +59,20 @@ def convert_object(ast):
 
 
 def convert_root_object(ast):
-    (object_name, object_parameter, object_id, my_object) = filter(filter_tokens, ast.children)
-
-    return {
-        object_name.text: {
-            'fields': convert_object(my_object),
-            object_parameter.text: object_id.text
-        }
+    (alias, object_name, attributes, my_object) = filter(filter_tokens, ast.children)
+    converted_dict = {}
+    if alias.text:
+        converted_dict["alias"] = alias.text
+    converted_dict[object_name.text] = {'fields': convert_object(my_object),
+        #object_parameter.text: object_id.text
     }
+    for attribute in attributes.children:
+        temp_attribute = attribute.text.strip(",")
+        object_parameter, object_id = temp_attribute.split(":")
+        converted_dict[object_name.text][object_parameter] = object_id
+    return converted_dict
 
 def parser(graphql):
-	# """User (id:234234) {one {sub1,sub2},two,three,four}"""
-	# RETURN:
-	# {'User': {'fields': [{'child_fields': [{'child_fields': [],
-	#      'field_name': 'sub1'},
-	#     {'child_fields': [], 'field_name': 'sub2'}],
-	#    'field_name': 'one'},
-	#   {'child_fields': [], 'field_name': 'two'},
-	#   {'child_fields': [], 'field_name': 'three'},
-	#   {'child_fields': [], 'field_name': 'four'}],
-	#  'id': '234234'}}
     ast = grammar.parse(graphql)
     transformed_object =  convert_root_object(ast)
     return transformed_object

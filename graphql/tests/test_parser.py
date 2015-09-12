@@ -92,3 +92,18 @@ class TestParser(TestCase):
 		string_model = """Address (id:1) {street_number, street_name}"""
 		returned_model = {'Address': {'fields': [{'child_fields': [], 'field_name': 'street_number'}, {'child_fields': [], 'field_name': 'street_name'}], 'id': '1'}}
 		self.assertEqual(graphql.parser(string_model), returned_model)
+
+
+	def testing_proper_graphql(self):
+		string_model = """{User (id:234234) {one {sub1,sub2},two,three,four}}"""
+		self.assertEqual({'User': {'fields': [{'child_fields': [{'child_fields': [], 'field_name': 'sub1'}, {'child_fields': [], 'field_name': 'sub2'}], 'field_name': 'one'}, {'child_fields': [], 'field_name': 'two'}, {'child_fields': [], 'field_name': 'three'}, {'child_fields': [], 'field_name': 'four'}], 'id': '234234'}}, graphql.parser(string_model))
+
+	def testing_alias_graphql(self):
+		string_model = """{Adriel: User (id:234234) {one {sub1,sub2},two,three,four}}"""
+		self.assertEqual(graphql.parser(string_model), {'alias': 'Adriel:', 'User': {'fields': [{'child_fields': [{'child_fields': [], 'field_name': 'sub1'}, {'child_fields': [], 'field_name': 'sub2'}], 'field_name': 'one'}, {'child_fields': [], 'field_name': 'two'}, {'child_fields': [], 'field_name': 'three'}, {'child_fields': [], 'field_name': 'four'}], 'id': '234234'}})
+
+	def testing_multiple_arguements(self):
+		string_model = """{User (gender:male,age:27) {one {sub1,sub2},two,three,four}}"""
+		self.assertEqual(graphql.parser(string_model), {'User': {'fields': [{'child_fields': [{'child_fields': [], 'field_name': 'sub1'}, {'child_fields': [], 'field_name': 'sub2'}], 'field_name': 'one'}, {'child_fields': [], 'field_name': 'two'}, {'child_fields': [], 'field_name': 'three'}, {'child_fields': [], 'field_name': 'four'}], 'age': '27', 'gender': 'male'}})
+		string_model = """{User (gender:male) {one {sub1,sub2},two,three,four}}"""
+		self.assertEqual(graphql.parser(string_model), {'User': {'fields': [{'child_fields': [{'child_fields': [], 'field_name': 'sub1'}, {'child_fields': [], 'field_name': 'sub2'}], 'field_name': 'one'}, {'child_fields': [], 'field_name': 'two'}, {'child_fields': [], 'field_name': 'three'}, {'child_fields': [], 'field_name': 'four'}], 'gender': 'male'}})
