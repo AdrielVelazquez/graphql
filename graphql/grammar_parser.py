@@ -1,7 +1,7 @@
 from parsimonious.grammar import Grammar
 
 grammar = Grammar("""
-     root =         OPEN_CURLY optional_alias WS object_name WS optional_attribute WS WS object WS CLOSE_CURLY
+     root =         operation WS OPEN_CURLY optional_alias WS object_name WS optional_attribute WS WS optional_object WS CLOSE_CURLY
      object =  OPEN_CURLY WS field_list WS CLOSE_CURLY
      WS =           ~"\s*"
      OPEN_CURLY =   "{"
@@ -14,6 +14,7 @@ grammar = Grammar("""
      attribute = object_parameter COLON object_id COMMA?
      multi_attribute = attribute+
      enclosed_attribute = OPEN_ROUND WS multi_attribute WS CLOSE_ROUND
+     operation = ~"[A-Z0-9_-]*"i
      object_name =  ~"[A-Z0-9_-]*"i
      object_id =    ~"[A-Z0-9_-]*"i
      object_parameter = ~"[A-Z0-9_-]*"i
@@ -55,9 +56,20 @@ def convert_field(ast):
     return convert_field_dict
 
 def convert_object(ast):
-    head, rest = filter(filter_tokens, filter(filter_tokens, ast.children)[0])
-    map(lambda x: filter(filter_tokens, x.children)[0], rest.children)
-
+    ###Getting Correct filters###
+    head, rest = [], []
+    if filter(filter_tokens, ast.children):
+        proper_len = 0
+        filtered_children = None
+        while proper_len != 2:
+            if not filtered_children:
+                filtered_children = filter(filter_tokens, filter(filter_tokens, ast.children)[0])
+            else:
+                filtered_children = filter(filter_tokens, filtered_children[0])
+            proper_len = len(filtered_children)
+        head, rest = filtered_children
+    if not head or not rest:
+        return []
     fields = [head] + map(lambda x: filter(filter_tokens, x.children)[0],
                           rest.children)
 
@@ -66,11 +78,12 @@ def convert_object(ast):
 
 
 def convert_root_object(ast):
-    (alias, object_name, attributes, my_object) = filter(filter_tokens, ast.children)
-    converted_dict = {}
+    (operation, alias, object_name, attributes, my_object) = filter(filter_tokens, ast.children)
+    converted_dict = {operation.text: {}}
     if alias.text:
-        converted_dict["alias"] = alias.text.strip(":")
-    converted_dict[object_name.text] = {'fields': convert_object(my_object)}
+        converted_dict[operation.text]["alias"] = alias.text.strip(":")
+    fields = convert_object(my_object)
+    converted_dict[operation.text][object_name.text] = {'fields': fields}
     if attributes.children:
         attributes = filter(filter_tokens, attributes.children[0])[0]
     for attribute in attributes.children:
@@ -78,7 +91,7 @@ def convert_root_object(ast):
         object_parameter, object_id = temp_attribute.split(":")
         if object_id.isdigit():
             object_id = int(object_id)
-        converted_dict[object_name.text][object_parameter] = object_id
+        converted_dict[operation.text][object_name.text][object_parameter] = object_id
     return converted_dict
 
 def parser(graphql):
