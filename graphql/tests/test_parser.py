@@ -30,7 +30,7 @@ class TestParser(TestCase):
 							'child_fields': [], 'field_name': 'four'
 						}
 					], 
-				'id': '234234'}
+				'id': 234234}
 			}
 		self.assertEqual(graphql.parser(string_model), returned_model)
 		string_model = """{User (id:12) {one {one_sub1,one-sub2}, two {sub1}}}"""
@@ -58,7 +58,7 @@ class TestParser(TestCase):
 							'field_name': 'two'
 						}
 					], 
-				'id': '12'}
+				'id': 12}
 			}
 		self.assertEqual(graphql.parser(string_model), returned_model)
 		string_model = """{User (ad_name:adriel) {one {one_sub1,one-sub2}, two {sub1}}}"""
@@ -90,22 +90,34 @@ class TestParser(TestCase):
 			}
 		self.assertEqual(graphql.parser(string_model), returned_model)
 		string_model = """{Address (id:1) {street_number, street_name}}"""
-		returned_model = {'Address': {'fields': [{'child_fields': [], 'field_name': 'street_number'}, {'child_fields': [], 'field_name': 'street_name'}], 'id': '1'}}
+		returned_model = {'Address': {'fields': [{'child_fields': [], 'field_name': 'street_number'}, {'child_fields': [], 'field_name': 'street_name'}], 'id': 1}}
 		self.assertEqual(graphql.parser(string_model), returned_model)
 
 
 	def testing_proper_graphql(self):
 		string_model = """{User (id:234234) {one {sub1,sub2},two,three,four}}"""
-		self.assertEqual({'User': {'fields': [{'child_fields': [{'child_fields': [], 'field_name': 'sub1'}, {'child_fields': [], 'field_name': 'sub2'}], 'field_name': 'one'}, {'child_fields': [], 'field_name': 'two'}, {'child_fields': [], 'field_name': 'three'}, {'child_fields': [], 'field_name': 'four'}], 'id': '234234'}}, graphql.parser(string_model))
+		self.assertEqual({'User': {'fields': [{'child_fields': [{'child_fields': [], 'field_name': 'sub1'}, {'child_fields': [], 'field_name': 'sub2'}], 'field_name': 'one'}, {'child_fields': [], 'field_name': 'two'}, {'child_fields': [], 'field_name': 'three'}, {'child_fields': [], 'field_name': 'four'}], 'id': 234234}}, graphql.parser(string_model))
 
 	def testing_alias_graphql(self):
 		string_model = """{Adriel: User (id:234234) {one {sub1,sub2},two,three,four}}"""
-		self.assertEqual(graphql.parser(string_model), {'alias': 'Adriel', 'User': {'fields': [{'child_fields': [{'child_fields': [], 'field_name': 'sub1'}, {'child_fields': [], 'field_name': 'sub2'}], 'field_name': 'one'}, {'child_fields': [], 'field_name': 'two'}, {'child_fields': [], 'field_name': 'three'}, {'child_fields': [], 'field_name': 'four'}], 'id': '234234'}})
+		self.assertEqual(graphql.parser(string_model), {'alias': 'Adriel', 'User': {'fields': [{'child_fields': [{'child_fields': [], 'field_name': 'sub1'}, {'child_fields': [], 'field_name': 'sub2'}], 'field_name': 'one'}, {'child_fields': [], 'field_name': 'two'}, {'child_fields': [], 'field_name': 'three'}, {'child_fields': [], 'field_name': 'four'}], 'id': 234234}})
 		string_model = """{Adriel: User (id:234234) {alias_attribute: one {sub1,sub2},two,three,four}}"""
-		self.assertEqual(graphql.parser(string_model), {'alias': 'Adriel', 'User': {'fields': [{'alias': 'alias_attribute', 'child_fields': [{'child_fields': [], 'field_name': 'sub1'}, {'child_fields': [], 'field_name': 'sub2'}], 'field_name': 'one'}, {'child_fields': [], 'field_name': 'two'}, {'child_fields': [], 'field_name': 'three'}, {'child_fields': [], 'field_name': 'four'}], 'id': '234234'}})
+		self.assertEqual(graphql.parser(string_model), {'alias': 'Adriel', 'User': {'fields': [{'alias': 'alias_attribute', 'child_fields': [{'child_fields': [], 'field_name': 'sub1'}, {'child_fields': [], 'field_name': 'sub2'}], 'field_name': 'one'}, {'child_fields': [], 'field_name': 'two'}, {'child_fields': [], 'field_name': 'three'}, {'child_fields': [], 'field_name': 'four'}], 'id': 234234}})
 
 	def testing_multiple_arguements(self):
 		string_model = """{User (gender:male,age:27) {one {sub1,sub2},two,three,four}}"""
-		self.assertEqual(graphql.parser(string_model), {'User': {'fields': [{'child_fields': [{'child_fields': [], 'field_name': 'sub1'}, {'child_fields': [], 'field_name': 'sub2'}], 'field_name': 'one'}, {'child_fields': [], 'field_name': 'two'}, {'child_fields': [], 'field_name': 'three'}, {'child_fields': [], 'field_name': 'four'}], 'age': '27', 'gender': 'male'}})
+		self.assertEqual(graphql.parser(string_model), {'User': {'fields': [{'child_fields': [{'child_fields': [], 'field_name': 'sub1'}, {'child_fields': [], 'field_name': 'sub2'}], 'field_name': 'one'}, {'child_fields': [], 'field_name': 'two'}, {'child_fields': [], 'field_name': 'three'}, {'child_fields': [], 'field_name': 'four'}], 'age': 27, 'gender': 'male'}})
 		string_model = """{User (gender:male) {one {sub1,sub2},two,three,four}}"""
 		self.assertEqual(graphql.parser(string_model), {'User': {'fields': [{'child_fields': [{'child_fields': [], 'field_name': 'sub1'}, {'child_fields': [], 'field_name': 'sub2'}], 'field_name': 'one'}, {'child_fields': [], 'field_name': 'two'}, {'child_fields': [], 'field_name': 'three'}, {'child_fields': [], 'field_name': 'four'}], 'gender': 'male'}})
+
+	def testing_inner_ids_and_criterias(self):
+		string_model = """{User (gender:male,age:27) {one (id:123) {sub1,sub2},two,three,four}}"""
+		self.assertEqual(graphql.parser(string_model), {'User': {'fields': [{'child_fields': [{'child_fields': [], 'field_name': 'sub1'}, {'child_fields': [], 'field_name': 'sub2'}], 'field_name': 'one', 'id': 123}, {'child_fields': [], 'field_name': 'two'}, {'child_fields': [], 'field_name': 'three'}, {'child_fields': [], 'field_name': 'four'}], 'age': 27, 'gender': 'male'}})
+
+	def testing_no_attributes(self):
+		string_model = """{User {one (id:123) {sub1,sub2},two,three,four}}"""
+		self.assertEqual(graphql.parser(string_model), {'User': {'fields': [{'child_fields': [{'child_fields': [], 'field_name': 'sub1'}, {'child_fields': [], 'field_name': 'sub2'}], 'field_name': 'one', 'id': 123}, {'child_fields': [], 'field_name': 'two'}, {'child_fields': [], 'field_name': 'three'}, {'child_fields': [], 'field_name': 'four'}]}})
+		string_model = """{User{one(id:123){sub1,sub2},two,three,four}}"""
+		self.assertEqual(graphql.parser(string_model), {'User': {'fields': [{'child_fields': [{'child_fields': [], 'field_name': 'sub1'}, {'child_fields': [], 'field_name': 'sub2'}], 'field_name': 'one', 'id': 123}, {'child_fields': [], 'field_name': 'two'}, {'child_fields': [], 'field_name': 'three'}, {'child_fields': [], 'field_name': 'four'}]}})
+
+

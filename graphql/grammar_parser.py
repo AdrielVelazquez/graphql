@@ -1,8 +1,8 @@
 from parsimonious.grammar import Grammar
 
 grammar = Grammar("""
-     root =         OPEN_CURLY optional_alias WS object_name WS OPEN_ROUND WS multi_attribute WS CLOSE_ROUND WS WS object WS CLOSE_CURLY
-     object = OPEN_CURLY WS field_list WS CLOSE_CURLY
+     root =         OPEN_CURLY optional_alias WS object_name WS optional_attribute WS WS object WS CLOSE_CURLY
+     object =  OPEN_CURLY WS field_list WS CLOSE_CURLY
      WS =           ~"\s*"
      OPEN_CURLY =   "{"
      CLOSE_CURLY =  "}"
@@ -13,15 +13,17 @@ grammar = Grammar("""
      alias = object_name COLON
      attribute = object_parameter COLON object_id COMMA?
      multi_attribute = attribute+
+     enclosed_attribute = OPEN_ROUND WS multi_attribute WS CLOSE_ROUND
      object_name =  ~"[A-Z0-9_-]*"i
      object_id =    ~"[A-Z0-9_-]*"i
      object_parameter = ~"[A-Z0-9_-]*"i
      name =         ~"[A-Z0-9_-]*"i
      field_name =   ~"[A-Z0-9_-]*"i
      field_list = field WS (COMMA WS field)*
-     field = optional_alias WS field_name WS optional_object
+     field = optional_alias WS field_name WS optional_attribute WS optional_object
      optional_alias = alias?
      optional_object = object?
+     optional_attribute = enclosed_attribute?
 """)
 
 
@@ -35,14 +37,19 @@ def filter_tokens(node):
 
 
 def convert_field(ast):
-    (alias, _, field_name, _, optional_object) = ast
-
+    (alias, _, field_name, _, attributes, _, optional_object) = ast
     child_fields = [] if len(optional_object.children) == 0 else (
         convert_object(optional_object.children[0])
     )
     convert_field_dict = {}
     if alias.text:
         convert_field_dict["alias"] = alias.text.strip(":")
+    for attribute in attributes.children:
+        temp_attribute = attribute.text.strip(",").strip("()")
+        object_parameter, object_id = temp_attribute.split(":")
+        if object_id.isdigit():
+            object_id = int(object_id)
+        convert_field_dict[object_parameter] = object_id
     convert_field_dict["field_name"] = field_name.text
     convert_field_dict["child_fields"] = child_fields
     return convert_field_dict
@@ -63,12 +70,14 @@ def convert_root_object(ast):
     converted_dict = {}
     if alias.text:
         converted_dict["alias"] = alias.text.strip(":")
-    converted_dict[object_name.text] = {'fields': convert_object(my_object),
-        #object_parameter.text: object_id.text
-    }
+    converted_dict[object_name.text] = {'fields': convert_object(my_object)}
+    if attributes.children:
+        attributes = filter(filter_tokens, attributes.children[0])[0]
     for attribute in attributes.children:
         temp_attribute = attribute.text.strip(",")
         object_parameter, object_id = temp_attribute.split(":")
+        if object_id.isdigit():
+            object_id = int(object_id)
         converted_dict[object_name.text][object_parameter] = object_id
     return converted_dict
 
