@@ -45,11 +45,11 @@ def filter_tokens(node):
     return node.expr_name not in IGNORE_NAMES
 
 
-def convert_field(ast):
+def convert_field(ast, target_object):
     final_list = []
     (alias, _, field_name, _, attributes, _, optional_object) = ast
     child_fields = [] if len(optional_object.children) == 0 else (
-        convert_object(optional_object.children[0])
+        convert_object(optional_object.children[0], target_object)
     )
     convert_field_dict = {}
     if alias.text:
@@ -63,6 +63,7 @@ def convert_field(ast):
     if field_name.text.startswith("..."):
         fragement_term = field_name.text.replace("...", "")
         assert fragement_term in fragement_dict, "fragement {} isn't in fragement dict ({})".format(fragement_term, ", ".join(fragement_dict.keys()))
+        assert target_object == fragement_dict.get(fragement_term).get("model"), "fragement target {} isn't in fragement dict ({})".format(target_object, fragement_dict.get(fragement_term).get("model"))
         for frag_field in fragement_dict.get(fragement_term).get("fields"):
             temp_dict = copy.deepcopy(convert_field_dict)
             temp_dict["field_name"] = frag_field.get("field_name")
@@ -74,13 +75,17 @@ def convert_field(ast):
         final_list.append(convert_field_dict)
     return final_list
 
-def convert_object(ast):
+def convert_object(ast, target_object):
     ###Getting Correct filters###
     head, rest = [], []
     if filter(filter_tokens, ast.children):
         proper_len = 0
         filtered_children = None
         while proper_len != 2:
+            '''
+            nested children sometimes get nested deeper then the immediate level
+            After parsing and filtering, two objects should remain. 
+            '''
             if not filtered_children:
                 filtered_children = filter(filter_tokens, filter(filter_tokens, ast.children)[0])
             else:
@@ -93,9 +98,8 @@ def convert_object(ast):
                           rest.children)
     returned_fields = []
     for field in fields:
-        for nested_field in convert_field(field):
+        for nested_field in convert_field(field, target_object):
             returned_fields.append(nested_field)
-    #fields = [final_field for final_field in convert_field(field) for field in fields]
     return returned_fields
 
 
@@ -109,9 +113,8 @@ def convert_root_object(ast):
         if "".join(frag.text.split()):
             frag_text, frag_object = filter(filter_tokens, frag.children)
             _, fragment_name, _, model = frag_text.text.split(" ")
-            fragement_dict[fragment_name] = {"model": model, "fields": convert_object(frag_object)}
-
-    fields = convert_object(my_object)
+            fragement_dict[fragment_name] = {"model": model, "fields": convert_object(frag_object, model)}
+    fields = convert_object(my_object, object_name.text)
     converted_dict[operation.text][object_name.text] = {'fields': fields}
     if attributes.children:
         attributes = filter(filter_tokens, attributes.children[0])[0]
@@ -125,5 +128,5 @@ def convert_root_object(ast):
 
 def parser(graphql):
     ast = grammar.parse(graphql)
-    transformed_object =  convert_root_object(ast)
+    transformed_object = convert_root_object(ast)
     return transformed_object

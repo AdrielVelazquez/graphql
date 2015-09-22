@@ -204,6 +204,8 @@ class TestParser(TestCase):
 
 	@raises(AssertionError)
 	def test_fragment_exceptions(self):
+		string_model = """query {User {...Gibbberish}} fragment Gibberish on Advertiser {id, name}"""
+		graphql.parser(string_model)
 		string_model = """query {User {...Gibbberish}} fragment Gibberish on User {id, name}"""
-		self.assertEqual({'query': {'User': {'fields': [{'child_fields': [], 'field_name': {'fields': [{'child_fields': [], 'field_name': 'id'}, {'child_fields': [], 'field_name': 'name'}], 'model': 'User'}}]}}}, graphql.parser(string_model))
+		graphql.parser(string_model)
 
