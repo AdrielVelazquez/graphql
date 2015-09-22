@@ -1,4 +1,5 @@
 from unittest import TestCase
+from nose.tools import raises
 
 import graphql
 
@@ -135,6 +136,74 @@ class TestParser(TestCase):
 		string_model = """query {User {one (id:123) {sub1,sub2},two,three,four}}"""
 		self.assertEqual(graphql.parser(string_model), {"query": {'User': {'fields': [{'child_fields': [{'child_fields': [], 'field_name': 'sub1'}, {'child_fields': [], 'field_name': 'sub2'}], 'field_name': 'one', 'id': 123}, {'child_fields': [], 'field_name': 'two'}, {'child_fields': [], 'field_name': 'three'}, {'child_fields': [], 'field_name': 'four'}]}}})
 
-	def testing_fragmenets(self):
-		string_model = """query {User {one (id:123) {sub1 {...Gibberish},sub2},two,three,four}} fragment Gibberish on User {id, name}"""
-		self.assertEqual(graphql.parser(string_model), {'query': {'User': {'fields': [{'child_fields': [{'child_fields': [{'child_fields': [], 'field_name': {'fields': [{'child_fields': [], 'field_name': 'id'}, {'child_fields': [], 'field_name': 'name'}], 'model': 'User'}}], 'field_name': 'sub1'}, {'child_fields': [], 'field_name': 'sub2'}], 'field_name': 'one', 'id': 123}, {'child_fields': [], 'field_name': 'two'}, {'child_fields': [], 'field_name': 'three'}, {'child_fields': [], 'field_name': 'four'}]}}})
+	def testing_fragments(self):
+		string_model = """query {User (id:234234) {one {...Gibberish},two,three,four}} fragment Gibberish on User {sub1, sub2}"""
+		returned_model = {"query": {'User': 
+			{
+				'fields': 
+					[
+						{
+							'child_fields': 
+								[
+									{'child_fields': [], 'field_name': 'sub1'}, 
+									{'child_fields': [], 'field_name': 'sub2'}
+								], 
+							'field_name': 'one'
+						}, 
+						{
+							'child_fields': [], 
+							'field_name': 'two'
+						}, 
+						{
+							'child_fields': [], 
+							'field_name': 'three'
+						}, 
+						{
+							'child_fields': [], 'field_name': 'four'
+						}
+					], 
+				'id': 234234}
+			}
+		}
+		self.assertEqual(graphql.parser(string_model), returned_model)
+
+	def testing_multiple_fragments(self):
+		string_model = """query {User (id:234234) {one {...Gibberish},two {...SecondGibberish},three,four}} fragment Gibberish on User {sub1, sub2} fragment SecondGibberish on User {supersub_1, supersub_2}"""
+		returned_model = {"query": {'User': 
+			{
+				'fields': 
+					[
+						{
+							'child_fields': 
+								[
+									{'child_fields': [], 'field_name': 'sub1'}, 
+									{'child_fields': [], 'field_name': 'sub2'}
+								], 
+							'field_name': 'one'
+						}, 
+						{
+							'child_fields': 
+								[
+									{'child_fields': [], 'field_name': 'supersub_1'}, 
+									{'child_fields': [], 'field_name': 'supersub_2'}
+								], 
+							'field_name': 'two'
+						}, 
+						{
+							'child_fields': [], 
+							'field_name': 'three'
+						}, 
+						{
+							'child_fields': [], 'field_name': 'four'
+						}
+					], 
+				'id': 234234}
+			}
+		}
+		self.assertEqual(graphql.parser(string_model), returned_model)
+
+	@raises(AssertionError)
+	def test_fragment_exceptions(self):
+		string_model = """query {User {...Gibbberish}} fragment Gibberish on User {id, name}"""
+		self.assertEqual({'query': {'User': {'fields': [{'child_fields': [], 'field_name': {'fields': [{'child_fields': [], 'field_name': 'id'}, {'child_fields': [], 'field_name': 'name'}], 'model': 'User'}}]}}}, graphql.parser(string_model))
+

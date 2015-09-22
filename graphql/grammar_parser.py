@@ -1,7 +1,8 @@
+import copy
 from parsimonious.grammar import Grammar
 
 grammar = Grammar("""
-     root = operation WS OPEN_CURLY optional_alias WS object_name WS optional_attribute WS WS optional_object WS CLOSE_CURLY WS optional_fragment WS optional_object
+     root = operation WS OPEN_CURLY optional_alias WS object_name WS optional_attribute WS WS optional_object WS CLOSE_CURLY WS multi_fragment 
      object =  OPEN_CURLY WS field_list WS CLOSE_CURLY
      WS = ~"\s*"
      OPEN_CURLY = "{"
@@ -14,6 +15,8 @@ grammar = Grammar("""
      alias = object_name COLON
      attribute = object_parameter COLON object_id COMMA?
      multi_attribute = attribute+
+     fragment_plus_object = optional_fragment WS optional_object
+     multi_fragment = fragment_plus_object+
      enclosed_attribute = OPEN_ROUND WS multi_attribute WS CLOSE_ROUND
      operation = ~"[A-Z0-9_-]*"i
      fragment = "fragment" WS wild_card WS "on" WS wild_card
@@ -43,6 +46,7 @@ def filter_tokens(node):
 
 
 def convert_field(ast):
+    final_list = []
     (alias, _, field_name, _, attributes, _, optional_object) = ast
     child_fields = [] if len(optional_object.children) == 0 else (
         convert_object(optional_object.children[0])
@@ -58,11 +62,17 @@ def convert_field(ast):
         convert_field_dict[object_parameter] = object_id
     if field_name.text.startswith("..."):
         fragement_term = field_name.text.replace("...", "")
-        convert_field_dict["field_name"] = fragement_dict.get(fragement_term, [])
+        assert fragement_term in fragement_dict, "fragement {} isn't in fragement dict ({})".format(fragement_term, ", ".join(fragement_dict.keys()))
+        for frag_field in fragement_dict.get(fragement_term).get("fields"):
+            temp_dict = copy.deepcopy(convert_field_dict)
+            temp_dict["field_name"] = frag_field.get("field_name")
+            temp_dict["child_fields"] = frag_field.get("child_fields")
+            final_list.append(temp_dict)
     else:
         convert_field_dict["field_name"] = field_name.text
-    convert_field_dict["child_fields"] = child_fields
-    return convert_field_dict
+        convert_field_dict["child_fields"] = child_fields
+        final_list.append(convert_field_dict)
+    return final_list
 
 def convert_object(ast):
     ###Getting Correct filters###
@@ -81,18 +91,26 @@ def convert_object(ast):
         return []
     fields = [head] + map(lambda x: filter(filter_tokens, x.children)[0],
                           rest.children)
-    fields = [convert_field(field) for field in fields]
-    return fields
+    returned_fields = []
+    for field in fields:
+        for nested_field in convert_field(field):
+            returned_fields.append(nested_field)
+    #fields = [final_field for final_field in convert_field(field) for field in fields]
+    return returned_fields
 
 
 def convert_root_object(ast):
-    (operation, alias, object_name, attributes, my_object, fragment, fragment_object) = filter(filter_tokens, ast.children)
+    (operation, alias, object_name, attributes, my_object, fragment) = filter(filter_tokens, ast.children)
     converted_dict = {operation.text: {}}
     if alias.text:
         converted_dict[operation.text]["alias"] = alias.text.strip(":")
-    if fragment.text:
-        _, fragment_name, _, model = fragment.text.split(" ")
-        fragement_dict[fragment_name] = {"model": model, "fields": convert_object(fragment_object)}
+
+    for frag in filter(filter_tokens, filter(filter_tokens, fragment.children)):
+        if "".join(frag.text.split()):
+            frag_text, frag_object = filter(filter_tokens, frag.children)
+            _, fragment_name, _, model = frag_text.text.split(" ")
+            fragement_dict[fragment_name] = {"model": model, "fields": convert_object(frag_object)}
+
     fields = convert_object(my_object)
     converted_dict[operation.text][object_name.text] = {'fields': fields}
     if attributes.children:
