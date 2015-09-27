@@ -1,4 +1,6 @@
+import ast
 import copy
+
 from parsimonious.grammar import Grammar
 
 grammar = Grammar("""
@@ -11,10 +13,13 @@ grammar = Grammar("""
      CLOSE_ROUND = ")"
      COMMA = ","
      COLON = ":"
+     QUOTE = '"'
+     SINGLE_QUOTE = "'"
      OPEN_SQUARE = "["
      CLOSE_SQUARE = "]"
      wild_card = ~"[A-Z0-9_-]*"i
-     listed_wildcard = wild_card COMMA?
+     string_wild_card = (QUOTE / SINGLE_QUOTE) wild_card (QUOTE / SINGLE_QUOTE)
+     listed_wildcard = (string_wild_card / wild_card) COMMA?
      wild_card_list = OPEN_SQUARE WS listed_wildcard+ WS CLOSE_SQUARE
      alias = object_name COLON
      attribute = object_parameter COLON object_id COMMA?
@@ -25,7 +30,7 @@ grammar = Grammar("""
      operation = ~"[A-Z0-9_-]*"i
      fragment = "fragment" WS wild_card WS "on" WS wild_card
      object_name = wild_card
-     object_id = wild_card_list / wild_card 
+     object_id = wild_card_list / string_wild_card / wild_card 
      object_parameter = wild_card
      name = wild_card
      fragment_target = "..." wild_card
@@ -48,20 +53,9 @@ fragement_dict = {}
 def filter_tokens(node):
     return node.expr_name not in IGNORE_NAMES
 
-def convert_item(s):
-    if s.isdigit():
-        return int(s)
-    try:
-        returned_item = float(s)
-        return returned_item
-    except ValueError:
-        if s.startswith("["):
-            s.strip("[]")
-        return str(s)
-
-def convert_field(ast, target_object):
+def convert_field(gast, target_object):
     final_list = []
-    (alias, _, field_name, _, attributes, _, optional_object) = ast
+    (alias, _, field_name, _, attributes, _, optional_object) = gast
     child_fields = [] if len(optional_object.children) == 0 else (
         convert_object(optional_object.children[0], target_object)
     )
@@ -77,22 +71,57 @@ def convert_field(ast, target_object):
     if field_name.text.startswith("..."):
         fragement_term = field_name.text.replace("...", "")
         assert fragement_term in fragement_dict, "fragement {} isn't in fragement dict ({})".format(fragement_term, ", ".join(fragement_dict.keys()))
-        assert target_object == fragement_dict.get(fragement_term).get("model"), "fragement target {} isn't in fragement dict ({})".format(target_object, fragement_dict.get(fragement_term).get("model"))
-        for frag_field in fragement_dict.get(fragement_term).get("fields"):
-            temp_dict = copy.deepcopy(convert_field_dict)
-            temp_dict["field_name"] = frag_field.get("field_name")
-            temp_dict["child_fields"] = frag_field.get("child_fields")
-            final_list.append(temp_dict)
+        #assert target_object == fragement_dict.get(fragement_term).get("model"), "fragement target {} isn't in fragement dict ({})".format(target_object, fragement_dict.get(fragement_term).get("model"))
+        if target_object == fragement_dict.get(fragement_term).get("model"):
+            for frag_field in fragement_dict.get(fragement_term).get("fields"):
+                '''
+                Fragments can be assigned directly to a target_object; 
+                however, if the model doesn't exist it can get associated
+                to an abstract class which can downgrade to multiple models. 
+                Ex:
+                query FragmentTyping {
+                  profiles(handles: ["zuck", "cocacola"]) {
+                    handle
+                    ...userFragment
+                    ...pageFragment
+                  }
+                }
+
+                fragment userFragment on User {
+                  friends {
+                    count
+                  }
+                }
+
+                fragment pageFragment on Page {
+                  likers {
+                    count
+                  }
+                }
+                '''
+                temp_dict = copy.deepcopy(convert_field_dict)
+                temp_dict["field_name"] = frag_field.get("field_name")
+                temp_dict["child_fields"] = frag_field.get("child_fields")
+                final_list.append(temp_dict)
+        else:
+            for frag_field in fragement_dict.get(fragement_term).get("fields"):
+                temp_dict = copy.deepcopy(convert_field_dict)
+                temp_dict["target_model"] = {
+                    "model": fragement_dict.get(fragement_term).get("model"),
+                    "field_name": frag_field.get("field_name"),
+                    "child_fields": frag_field.get("child_fields")
+                    }
+                final_list.append(temp_dict)
     else:
         convert_field_dict["field_name"] = field_name.text
         convert_field_dict["child_fields"] = child_fields
         final_list.append(convert_field_dict)
     return final_list
 
-def convert_object(ast, target_object):
+def convert_object(gast, target_object):
     ###Getting Correct filters###
     head, rest = [], []
-    if filter(filter_tokens, ast.children):
+    if filter(filter_tokens, gast.children):
         proper_len = 0
         filtered_children = None
         while proper_len != 2:
@@ -101,7 +130,7 @@ def convert_object(ast, target_object):
             After parsing and filtering, two objects should remain. 
             '''
             if not filtered_children:
-                filtered_children = filter(filter_tokens, filter(filter_tokens, ast.children)[0])
+                filtered_children = filter(filter_tokens, filter(filter_tokens, gast.children)[0])
             else:
                 filtered_children = filter(filter_tokens, filtered_children[0])
             proper_len = len(filtered_children)
@@ -117,12 +146,12 @@ def convert_object(ast, target_object):
     return returned_fields
 
 
-def convert_root_object(ast):
-    (operation, alias, object_name, attributes, my_object, fragment) = filter(filter_tokens, ast.children)
+def convert_root_object(gast):
+    (operation, alias, object_name, attributes, my_object, fragment) = filter(filter_tokens, gast.children)
     converted_dict = {operation.text: {}}
     if alias.text:
         converted_dict[operation.text]["alias"] = alias.text.strip(":")
-    for frag in filter(filter_tokens, filter(filter_tokens, fragment.children)):
+    for frag in reversed(filter(filter_tokens, filter(filter_tokens, fragment.children))):
         if "".join(frag.text.split()):
             frag_text, frag_object = filter(filter_tokens, frag.children)
             _, fragment_name, _, model = frag_text.text.split(" ")
@@ -135,18 +164,11 @@ def convert_root_object(ast):
         filtered_attribute = filter(filter_tokens, attribute)
         object_parameter = filtered_attribute[0]
         object_id = filtered_attribute[1]
-        #Check if object id is a list
-        if object_id.children[0].expr_name == "wild_card_list":
-            object_id = object_id.text.strip("[()]").split(",")
-            object_id = map(convert_object, object_id)
-        elif object_id.text.isdigit():
-            object_id = int(object_id.text)
-        else:
-            object_id = object_id.text
+        object_id = ast.literal_eval(object_id.text)
         converted_dict[operation.text][object_name.text][object_parameter.text] = object_id
     return converted_dict
 
 def parser(graphql):
-    ast = grammar.parse(graphql)
-    transformed_object = convert_root_object(ast)
+    gast = grammar.parse(graphql)
+    transformed_object = convert_root_object(gast)
     return transformed_object

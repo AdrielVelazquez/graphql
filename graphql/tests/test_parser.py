@@ -64,7 +64,7 @@ class TestParser(TestCase):
 			}
 		}
 		self.assertEqual(graphql.parser(string_model), returned_model)
-		string_model = """query {User (ad_name:adriel) {one {one_sub1,one-sub2}, two {sub1}}}"""
+		string_model = """query {User (ad_name:"adriel") {one {one_sub1,one-sub2}, two {sub1}}}"""
 		self.assertTrue(isinstance(graphql.parser(string_model), dict))
 		returned_model = {"query": {'User': 
 			{
@@ -109,21 +109,21 @@ class TestParser(TestCase):
 		self.assertEqual(graphql.parser(string_model), {"query": {'alias': 'Adriel', 'User': {'fields': [{'alias': 'alias_attribute', 'child_fields': [{'child_fields': [], 'field_name': 'sub1'}, {'child_fields': [], 'field_name': 'sub2'}], 'field_name': 'one'}, {'child_fields': [], 'field_name': 'two'}, {'child_fields': [], 'field_name': 'three'}, {'child_fields': [], 'field_name': 'four'}], 'id': 234234}}})
 
 	def testing_multiple_arguements(self):
-		string_model = """query {User (gender:male,age:27) {one {sub1,sub2},two,three,four}}"""
+		string_model = """query {User (gender:"male",age:27) {one {sub1,sub2},two,three,four}}"""
 		self.assertEqual(graphql.parser(string_model), {"query": {'User': {'fields': [{'child_fields': [{'child_fields': [], 'field_name': 'sub1'}, {'child_fields': [], 'field_name': 'sub2'}], 'field_name': 'one'}, {'child_fields': [], 'field_name': 'two'}, {'child_fields': [], 'field_name': 'three'}, {'child_fields': [], 'field_name': 'four'}], 'age': 27, 'gender': 'male'}}})
-		string_model = """query {User (gender:male) {one {sub1,sub2},two,three,four}}"""
+		string_model = """query {User (gender:"male") {one {sub1,sub2},two,three,four}}"""
 		self.assertEqual(graphql.parser(string_model), {"query": {'User': {'fields': [{'child_fields': [{'child_fields': [], 'field_name': 'sub1'}, {'child_fields': [], 'field_name': 'sub2'}], 'field_name': 'one'}, {'child_fields': [], 'field_name': 'two'}, {'child_fields': [], 'field_name': 'three'}, {'child_fields': [], 'field_name': 'four'}], 'gender': 'male'}}})
 
 	def testing_arguements_as_types(self):
 		#age list
-		string_model = """query {User (age:[27,28,35,60]) {one {sub1,sub2},two,three,four}}"""
-		self.assertEqual(graphql.parser(string_model), {"query": {'User': {'fields': [{'child_fields': [{'child_fields': [], 'field_name': 'sub1'}, {'child_fields': [], 'field_name': 'sub2'}], 'field_name': 'one'}, {'child_fields': [], 'field_name': 'two'}, {'child_fields': [], 'field_name': 'three'}, {'child_fields': [], 'field_name': 'four'}], 'age': [27, 28, 35, 60]}}})
+		#string_model = """query {User (age:[27,28,35,60]) {one {sub1,sub2},two,three,four}}"""
+		#self.assertEqual(graphql.parser(string_model), {"query": {'User': {'fields': [{'child_fields': [{'child_fields': [], 'field_name': 'sub1'}, {'child_fields': [], 'field_name': 'sub2'}], 'field_name': 'one'}, {'child_fields': [], 'field_name': 'two'}, {'child_fields': [], 'field_name': 'three'}, {'child_fields': [], 'field_name': 'four'}], 'age': [27, 28, 35, 60]}}})
 		#Mixed types
-		string_model = """query {User (age:[27,twenty,35,60]) {one {sub1,sub2},two,three,four}}"""
+		string_model = """query {User (age:[27,"twenty",35,60]) {one {sub1,sub2},two,three,four}}"""
 		self.assertEqual(graphql.parser(string_model), {"query": {'User': {'fields': [{'child_fields': [{'child_fields': [], 'field_name': 'sub1'}, {'child_fields': [], 'field_name': 'sub2'}], 'field_name': 'one'}, {'child_fields': [], 'field_name': 'two'}, {'child_fields': [], 'field_name': 'three'}, {'child_fields': [], 'field_name': 'four'}], 'age': [27, "twenty", 35, 60]}}})
 
 	def testing_inner_ids_and_criterias(self):
-		string_model = """query {User (gender:male,age:27) {one (id:123) {sub1,sub2},two,three,four}}"""
+		string_model = """query {User (gender:"male",age:27) {one (id:123) {sub1,sub2},two,three,four}}"""
 		self.assertEqual(graphql.parser(string_model), {"query": {'User': {'fields': [{'child_fields': [{'child_fields': [], 'field_name': 'sub1'}, {'child_fields': [], 'field_name': 'sub2'}], 'field_name': 'one', 'id': 123}, {'child_fields': [], 'field_name': 'two'}, {'child_fields': [], 'field_name': 'three'}, {'child_fields': [], 'field_name': 'four'}], 'age': 27, 'gender': 'male'}}})
 
 	def testing_no_attributes(self):
@@ -217,3 +217,12 @@ class TestParser(TestCase):
 		string_model = """query {User {...Gibbberish}} fragment Gibberish on User {id, name}"""
 		graphql.parser(string_model)
 
+	def test_nested_fragment(self):
+		string_model = """query {Advertiser {...Gibberish}} fragment Gibberish on Advertiser {id, name, ...nested_frag} fragment nested_frag on Advertiser {ctr, vcr}"""
+		self.assertEqual(graphql.parser(string_model), {'query': {'Advertiser': {'fields': [{'child_fields': [], 'field_name': 'id'}, {'child_fields': [], 'field_name': 'name'}, {'child_fields': [], 'field_name': 'ctr'}, {'child_fields': [], 'field_name': 'vcr'}]}}})
+
+	def test_fragments_not_present(self):
+		string_model = """query {User {...Gibberish}} fragment Gibberish on Advertiser {id, name}"""
+		self.assertEqual(graphql.parser(string_model), {'query': {'User': {'fields': [{'target_model': {'model': 'Advertiser', 'field_name': 'id', 'child_fields': []}}, {'target_model': {'model': 'Advertiser', 'field_name': 'name', 'child_fields': []}}]}}})
+		string_model = """query {User {age, created, ...Gibberish}} fragment Gibberish on Advertiser {id, name}"""
+		self.assertEqual(graphql.parser(string_model), {'query': {'User': {'fields': [{'child_fields': [], 'field_name': 'age'}, {'child_fields': [], 'field_name': 'created'}, {'target_model': {'model': 'Advertiser', 'field_name': 'id', 'child_fields': []}}, {'target_model': {'model': 'Advertiser', 'field_name': 'name', 'child_fields': []}}]}}})
