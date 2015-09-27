@@ -11,7 +11,11 @@ grammar = Grammar("""
      CLOSE_ROUND = ")"
      COMMA = ","
      COLON = ":"
+     OPEN_SQUARE = "["
+     CLOSE_SQUARE = "]"
      wild_card = ~"[A-Z0-9_-]*"i
+     listed_wildcard = wild_card COMMA?
+     wild_card_list = OPEN_SQUARE WS listed_wildcard+ WS CLOSE_SQUARE
      alias = object_name COLON
      attribute = object_parameter COLON object_id COMMA?
      multi_attribute = attribute+
@@ -21,7 +25,7 @@ grammar = Grammar("""
      operation = ~"[A-Z0-9_-]*"i
      fragment = "fragment" WS wild_card WS "on" WS wild_card
      object_name = wild_card
-     object_id = wild_card
+     object_id = wild_card_list / wild_card 
      object_parameter = wild_card
      name = wild_card
      fragment_target = "..." wild_card
@@ -35,7 +39,7 @@ grammar = Grammar("""
 """)
 
 
-IGNORE_NAMES = ['WS', 'OPEN_CURLY', 'CLOSE_CURLY', 'COMMA', 'COLON', 'OPEN_ROUND', 'CLOSE_ROUND']
+IGNORE_NAMES = ['WS', 'OPEN_CURLY', 'CLOSE_CURLY', 'COMMA', 'COLON', 'OPEN_ROUND', 'CLOSE_ROUND', 'OPEN_SQUARE', 'CLOSE_SQUARE']
 
 split_list = lambda lst: (lst[0], lst[1:])
 
@@ -44,6 +48,16 @@ fragement_dict = {}
 def filter_tokens(node):
     return node.expr_name not in IGNORE_NAMES
 
+def convert_item(s):
+    if s.isdigit():
+        return int(s)
+    try:
+        returned_item = float(s)
+        return returned_item
+    except ValueError:
+        if s.startswith("["):
+            s.strip("[]")
+        return str(s)
 
 def convert_field(ast, target_object):
     final_list = []
@@ -108,7 +122,6 @@ def convert_root_object(ast):
     converted_dict = {operation.text: {}}
     if alias.text:
         converted_dict[operation.text]["alias"] = alias.text.strip(":")
-
     for frag in filter(filter_tokens, filter(filter_tokens, fragment.children)):
         if "".join(frag.text.split()):
             frag_text, frag_object = filter(filter_tokens, frag.children)
@@ -119,11 +132,18 @@ def convert_root_object(ast):
     if attributes.children:
         attributes = filter(filter_tokens, attributes.children[0])[0]
     for attribute in attributes.children:
-        temp_attribute = attribute.text.strip(",")
-        object_parameter, object_id = temp_attribute.split(":")
-        if object_id.isdigit():
-            object_id = int(object_id)
-        converted_dict[operation.text][object_name.text][object_parameter] = object_id
+        filtered_attribute = filter(filter_tokens, attribute)
+        object_parameter = filtered_attribute[0]
+        object_id = filtered_attribute[1]
+        #Check if object id is a list
+        if object_id.children[0].expr_name == "wild_card_list":
+            object_id = object_id.text.strip("[()]").split(",")
+            object_id = map(convert_object, object_id)
+        elif object_id.text.isdigit():
+            object_id = int(object_id.text)
+        else:
+            object_id = object_id.text
+        converted_dict[operation.text][object_name.text][object_parameter.text] = object_id
     return converted_dict
 
 def parser(graphql):

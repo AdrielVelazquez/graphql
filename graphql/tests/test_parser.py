@@ -114,6 +114,14 @@ class TestParser(TestCase):
 		string_model = """query {User (gender:male) {one {sub1,sub2},two,three,four}}"""
 		self.assertEqual(graphql.parser(string_model), {"query": {'User': {'fields': [{'child_fields': [{'child_fields': [], 'field_name': 'sub1'}, {'child_fields': [], 'field_name': 'sub2'}], 'field_name': 'one'}, {'child_fields': [], 'field_name': 'two'}, {'child_fields': [], 'field_name': 'three'}, {'child_fields': [], 'field_name': 'four'}], 'gender': 'male'}}})
 
+	def testing_arguements_as_types(self):
+		#age list
+		string_model = """query {User (age:[27,28,35,60]) {one {sub1,sub2},two,three,four}}"""
+		self.assertEqual(graphql.parser(string_model), {"query": {'User': {'fields': [{'child_fields': [{'child_fields': [], 'field_name': 'sub1'}, {'child_fields': [], 'field_name': 'sub2'}], 'field_name': 'one'}, {'child_fields': [], 'field_name': 'two'}, {'child_fields': [], 'field_name': 'three'}, {'child_fields': [], 'field_name': 'four'}], 'age': [27, 28, 35, 60]}}})
+		#Mixed types
+		string_model = """query {User (age:[27,twenty,35,60]) {one {sub1,sub2},two,three,four}}"""
+		self.assertEqual(graphql.parser(string_model), {"query": {'User': {'fields': [{'child_fields': [{'child_fields': [], 'field_name': 'sub1'}, {'child_fields': [], 'field_name': 'sub2'}], 'field_name': 'one'}, {'child_fields': [], 'field_name': 'two'}, {'child_fields': [], 'field_name': 'three'}, {'child_fields': [], 'field_name': 'four'}], 'age': [27, "twenty", 35, 60]}}})
+
 	def testing_inner_ids_and_criterias(self):
 		string_model = """query {User (gender:male,age:27) {one (id:123) {sub1,sub2},two,three,four}}"""
 		self.assertEqual(graphql.parser(string_model), {"query": {'User': {'fields': [{'child_fields': [{'child_fields': [], 'field_name': 'sub1'}, {'child_fields': [], 'field_name': 'sub2'}], 'field_name': 'one', 'id': 123}, {'child_fields': [], 'field_name': 'two'}, {'child_fields': [], 'field_name': 'three'}, {'child_fields': [], 'field_name': 'four'}], 'age': 27, 'gender': 'male'}}})
