@@ -1,5 +1,6 @@
 import ast
 import copy
+from collections import defaultdict
 
 from parsimonious.grammar import Grammar
 
@@ -22,7 +23,7 @@ grammar = Grammar("""
      listed_wildcard = (string_wild_card / wild_card) COMMA?
      wild_card_list = OPEN_SQUARE WS listed_wildcard+ WS CLOSE_SQUARE
      alias = object_name COLON
-     attribute = object_parameter COLON object_id COMMA?
+     attribute = (object_varible / object_parameter) COLON object_id COMMA?
      multi_attribute = attribute+
      fragment_plus_object = optional_fragment WS optional_object
      multi_fragment = fragment_plus_object+
@@ -30,8 +31,9 @@ grammar = Grammar("""
      operation = ~"[A-Z0-9_-]*"i
      fragment = "fragment" WS wild_card WS "on" WS wild_card
      object_name = wild_card
-     object_id = wild_card_list / string_wild_card / wild_card 
+     object_id = object_varible / wild_card_list / string_wild_card / wild_card 
      object_parameter = wild_card
+     object_varible = "$" wild_card
      name = wild_card
      fragment_target = "..." wild_card
      inline_fragment_target = "..." WS "on" WS wild_card
@@ -50,6 +52,7 @@ IGNORE_NAMES = ['WS', 'OPEN_CURLY', 'CLOSE_CURLY', 'COMMA', 'COLON', 'OPEN_ROUND
 split_list = lambda lst: (lst[0], lst[1:])
 
 fragement_dict = {}
+global_varibles = {}
 
 def filter_tokens(node):
     return node.expr_name not in IGNORE_NAMES
@@ -66,8 +69,10 @@ def convert_field(gast, target_object):
     for attribute in attributes.children:
         temp_attribute = attribute.text.strip(",").strip("()")
         object_parameter, object_id = temp_attribute.split(":")
-        if object_id.isdigit():
-            object_id = int(object_id)
+        if object_id in global_varibles:
+            object_id = global_varibles[object_id]
+        else:
+            object_id = ast.literal_eval(object_id)
         convert_field_dict[object_parameter] = object_id
     if field_name.text.startswith("..."):
         #Test if it's inline fragments or normal fragments
@@ -153,25 +158,42 @@ def convert_object(gast, target_object):
 
 
 def convert_root_object(gast):
+    '''
+    Query variables can be used within fragments. 
+    Query variables have global scope with a given operation, 
+    so a variable used within a fragment must be declared 
+    in any top‐level operation that transitively consumes that fragment. 
+    If a variable is referenced in a fragment and 
+    is included by an operation that does not define that variable, 
+    the operation cannot be executed.
+    '''
     (operation, alias, object_name, attributes, my_object, fragment) = filter(filter_tokens, gast.children)
-    converted_dict = {operation.text: {}}
+    converted_dict = defaultdict(lambda: defaultdict(dict))
+    #import pdb; pdb.set_trace()
     if alias.text:
         converted_dict[operation.text]["alias"] = alias.text.strip(":")
-    for frag in reversed(filter(filter_tokens, filter(filter_tokens, fragment.children))):
-        if "".join(frag.text.split()):
-            frag_text, frag_object = filter(filter_tokens, frag.children)
-            _, fragment_name, _, model = frag_text.text.split(" ")
-            fragement_dict[fragment_name] = {"model": model, "fields": convert_object(frag_object, model)}
-    fields = convert_object(my_object, object_name.text)
-    converted_dict[operation.text][object_name.text] = {'fields': fields}
     if attributes.children:
         attributes = filter(filter_tokens, attributes.children[0])[0]
     for attribute in attributes.children:
         filtered_attribute = filter(filter_tokens, attribute)
         object_parameter = filtered_attribute[0]
         object_id = filtered_attribute[1]
-        object_id = ast.literal_eval(object_id.text)
-        converted_dict[operation.text][object_name.text][object_parameter.text] = object_id
+        if object_id.text in global_varibles:
+            object_id = global_varibles[object_id.text]
+        else:
+            object_id = ast.literal_eval(object_id.text)
+        object_par_name = object_parameter.text
+        if object_parameter.children[0].expr_name == "object_varible":
+            global_varibles[object_parameter.text] = object_id
+            object_par_name = object_par_name.strip("$")
+        converted_dict[operation.text][object_name.text][object_par_name] = object_id
+    for frag in reversed(filter(filter_tokens, filter(filter_tokens, fragment.children))):
+        if "".join(frag.text.split()):
+            frag_text, frag_object = filter(filter_tokens, frag.children)
+            _, fragment_name, _, model = frag_text.text.split(" ")
+            fragement_dict[fragment_name] = {"model": model, "fields": convert_object(frag_object, model)}
+    fields = convert_object(my_object, object_name.text)
+    converted_dict[operation.text][object_name.text]["fields"] = fields
     return converted_dict
 
 def parser(graphql):
