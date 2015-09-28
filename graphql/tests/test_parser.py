@@ -221,6 +221,10 @@ class TestParser(TestCase):
 		string_model = """query {Advertiser {...Gibberish}} fragment Gibberish on Advertiser {id, name, ...nested_frag} fragment nested_frag on Advertiser {ctr, vcr}"""
 		self.assertEqual(graphql.parser(string_model), {'query': {'Advertiser': {'fields': [{'child_fields': [], 'field_name': 'id'}, {'child_fields': [], 'field_name': 'name'}, {'child_fields': [], 'field_name': 'ctr'}, {'child_fields': [], 'field_name': 'vcr'}]}}})
 
+	def test_inline_fragment(self):
+		string_model = """query {Advertiser {... on Campaign {line_items, name}}}"""
+		self.assertEqual(graphql.parser(string_model), {'query': {'Advertiser': {'fields': [{'child_fields': [], 'field_name': 'line_items', 'polymorphic_target': 'Campaign'}, {'child_fields': [], 'field_name': 'name', 'polymorphic_target': 'Campaign'}]}}})
+
 	def test_fragments_not_present(self):
 		string_model = """query {User {...Gibberish}} fragment Gibberish on Advertiser {id, name}"""
 		self.assertEqual(graphql.parser(string_model), {'query': {'User': {'fields': [{'polymorphic_target': 'Advertiser', 'field_name': 'id', 'child_fields': []}, {'polymorphic_target': 'Advertiser', 'field_name': 'name', 'child_fields': []}]}}})

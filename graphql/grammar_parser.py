@@ -34,9 +34,10 @@ grammar = Grammar("""
      object_parameter = wild_card
      name = wild_card
      fragment_target = "..." wild_card
+     inline_fragment_target = "..." WS "on" WS wild_card
      field_name = wild_card
      field_list = field WS (COMMA WS field)*
-     field = optional_alias WS (fragment_target / field_name) WS optional_attribute WS optional_object
+     field = optional_alias WS (inline_fragment_target / fragment_target / field_name) WS optional_attribute WS optional_object
      optional_alias = alias?
      optional_object = object?
      optional_attribute = enclosed_attribute?
@@ -69,47 +70,54 @@ def convert_field(gast, target_object):
             object_id = int(object_id)
         convert_field_dict[object_parameter] = object_id
     if field_name.text.startswith("..."):
-        fragement_term = field_name.text.replace("...", "")
-        assert fragement_term in fragement_dict, "fragement {} isn't in fragement dict ({})".format(fragement_term, ", ".join(fragement_dict.keys()))
-        #assert target_object == fragement_dict.get(fragement_term).get("model"), "fragement target {} isn't in fragement dict ({})".format(target_object, fragement_dict.get(fragement_term).get("model"))
-        if target_object == fragement_dict.get(fragement_term).get("model"):
-            for frag_field in fragement_dict.get(fragement_term).get("fields"):
-                '''
-                Fragments can be assigned directly to a target_object; 
-                however, if the model doesn't exist it can get associated
-                to an abstract class which can downgrade to multiple models. 
-                Ex:
-                query FragmentTyping {
-                  profiles(handles: ["zuck", "cocacola"]) {
-                    handle
-                    ...userFragment
-                    ...pageFragment
-                  }
-                }
-
-                fragment userFragment on User {
-                  friends {
-                    count
-                  }
-                }
-
-                fragment pageFragment on Page {
-                  likers {
-                    count
-                  }
-                }
-                '''
-                temp_dict = copy.deepcopy(convert_field_dict)
-                temp_dict["field_name"] = frag_field.get("field_name")
-                temp_dict["child_fields"] = frag_field.get("child_fields")
-                final_list.append(temp_dict)
+        #Test if it's inline fragments or normal fragments
+        if field_name.children[0].expr_name == "inline_fragment_target":
+            target_model = field_name.text.split()[-1]
+            for child in child_fields:
+                child["polymorphic_target"] = target_model
+                final_list.append(child)
         else:
-            for frag_field in fragement_dict.get(fragement_term).get("fields"):
-                temp_dict = copy.deepcopy(convert_field_dict)
-                temp_dict["polymorphic_target"] = fragement_dict.get(fragement_term).get("model")
-                temp_dict["field_name"] = frag_field.get("field_name")
-                temp_dict["child_fields"] = frag_field.get("child_fields")
-                final_list.append(temp_dict)
+            fragement_term = field_name.text.replace("...", "")
+            assert fragement_term in fragement_dict, "fragement {} isn't in fragement dict ({})".format(fragement_term, ", ".join(fragement_dict.keys()))
+            #assert target_object == fragement_dict.get(fragement_term).get("model"), "fragement target {} isn't in fragement dict ({})".format(target_object, fragement_dict.get(fragement_term).get("model"))
+            if target_object == fragement_dict.get(fragement_term).get("model"):
+                for frag_field in fragement_dict.get(fragement_term).get("fields"):
+                    '''
+                    Fragments can be assigned directly to a target_object; 
+                    however, if the model doesn't exist it can get associated
+                    to an abstract class which can downgrade to multiple models. 
+                    Ex:
+                    query FragmentTyping {
+                      profiles(handles: ["zuck", "cocacola"]) {
+                        handle
+                        ...userFragment
+                        ...pageFragment
+                      }
+                    }
+
+                    fragment userFragment on User {
+                      friends {
+                        count
+                      }
+                    }
+
+                    fragment pageFragment on Page {
+                      likers {
+                        count
+                      }
+                    }
+                    '''
+                    temp_dict = copy.deepcopy(convert_field_dict)
+                    temp_dict["field_name"] = frag_field.get("field_name")
+                    temp_dict["child_fields"] = frag_field.get("child_fields")
+                    final_list.append(temp_dict)
+            else:
+                for frag_field in fragement_dict.get(fragement_term).get("fields"):
+                    temp_dict = copy.deepcopy(convert_field_dict)
+                    temp_dict["polymorphic_target"] = fragement_dict.get(fragement_term).get("model")
+                    temp_dict["field_name"] = frag_field.get("field_name")
+                    temp_dict["child_fields"] = frag_field.get("child_fields")
+                    final_list.append(temp_dict)
     else:
         convert_field_dict["field_name"] = field_name.text
         convert_field_dict["child_fields"] = child_fields
