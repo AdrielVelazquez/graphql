@@ -1,6 +1,7 @@
 import ast
 import copy
 from collections import defaultdict
+import re
 
 from parsimonious.grammar import Grammar
 
@@ -69,8 +70,10 @@ def convert_field(gast, target_object):
     for attribute in attributes.children:
         temp_attribute = attribute.text.strip(",").strip("()")
         object_parameter, object_id = temp_attribute.split(":")
-        if object_id in global_varibles:
-            object_id = global_varibles[object_id]
+        if object_parameter.startswith("$"):
+            object_parameter = object_parameter.strip("$")
+        if object_id.startswith("$"):
+            object_id = global_varibles.get(object_id.strip("$"), object_id)
         else:
             object_id = ast.literal_eval(object_id)
         convert_field_dict[object_parameter] = object_id
@@ -158,15 +161,6 @@ def convert_object(gast, target_object):
 
 
 def convert_root_object(gast):
-    '''
-    Query variables can be used within fragments. 
-    Query variables have global scope with a given operation, 
-    so a variable used within a fragment must be declared 
-    in any top‐level operation that transitively consumes that fragment. 
-    If a variable is referenced in a fragment and 
-    is included by an operation that does not define that variable, 
-    the operation cannot be executed.
-    '''
     (operation, alias, object_name, attributes, my_object, fragment) = filter(filter_tokens, gast.children)
     converted_dict = defaultdict(lambda: defaultdict(dict))
     #import pdb; pdb.set_trace()
@@ -184,7 +178,6 @@ def convert_root_object(gast):
             object_id = ast.literal_eval(object_id.text)
         object_par_name = object_parameter.text
         if object_parameter.children[0].expr_name == "object_varible":
-            global_varibles[object_parameter.text] = object_id
             object_par_name = object_par_name.strip("$")
         converted_dict[operation.text][object_name.text][object_par_name] = object_id
     for frag in reversed(filter(filter_tokens, filter(filter_tokens, fragment.children))):
@@ -196,7 +189,15 @@ def convert_root_object(gast):
     converted_dict[operation.text][object_name.text]["fields"] = fields
     return converted_dict
 
+def get_global_varibles(graphql):
+    global global_varibles
+    items = re.findall('\$(.*?):(.*?)[,\s)]', graphql, re.DOTALL)
+    items = {key:value.strip("'").strip('"') for key, value in items}
+    global_varibles = items
+
+
 def parser(graphql):
+    get_global_varibles(graphql)
     gast = grammar.parse(graphql)
     transformed_object = convert_root_object(gast)
     return transformed_object
