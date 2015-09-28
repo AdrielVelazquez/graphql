@@ -223,6 +223,6 @@ class TestParser(TestCase):
 
 	def test_fragments_not_present(self):
 		string_model = """query {User {...Gibberish}} fragment Gibberish on Advertiser {id, name}"""
-		self.assertEqual(graphql.parser(string_model), {'query': {'User': {'fields': [{'target_model': {'model': 'Advertiser', 'field_name': 'id', 'child_fields': []}}, {'target_model': {'model': 'Advertiser', 'field_name': 'name', 'child_fields': []}}]}}})
+		self.assertEqual(graphql.parser(string_model), {'query': {'User': {'fields': [{'polymorphic_target': 'Advertiser', 'field_name': 'id', 'child_fields': []}, {'polymorphic_target': 'Advertiser', 'field_name': 'name', 'child_fields': []}]}}})
 		string_model = """query {User {age, created, ...Gibberish}} fragment Gibberish on Advertiser {id, name}"""
-		self.assertEqual(graphql.parser(string_model), {'query': {'User': {'fields': [{'child_fields': [], 'field_name': 'age'}, {'child_fields': [], 'field_name': 'created'}, {'target_model': {'model': 'Advertiser', 'field_name': 'id', 'child_fields': []}}, {'target_model': {'model': 'Advertiser', 'field_name': 'name', 'child_fields': []}}]}}})
+		self.assertEqual(graphql.parser(string_model), {'query': {'User': {'fields': [{'child_fields': [], 'field_name': 'age'}, {'child_fields': [], 'field_name': 'created'}, {'polymorphic_target': 'Advertiser', 'field_name': 'id', 'child_fields': []}, {'polymorphic_target': 'Advertiser', 'field_name': 'name', 'child_fields': []}]}}})

@@ -106,11 +106,9 @@ def convert_field(gast, target_object):
         else:
             for frag_field in fragement_dict.get(fragement_term).get("fields"):
                 temp_dict = copy.deepcopy(convert_field_dict)
-                temp_dict["target_model"] = {
-                    "model": fragement_dict.get(fragement_term).get("model"),
-                    "field_name": frag_field.get("field_name"),
-                    "child_fields": frag_field.get("child_fields")
-                    }
+                temp_dict["polymorphic_target"] = fragement_dict.get(fragement_term).get("model")
+                temp_dict["field_name"] = frag_field.get("field_name")
+                temp_dict["child_fields"] = frag_field.get("child_fields")
                 final_list.append(temp_dict)
     else:
         convert_field_dict["field_name"] = field_name.text
