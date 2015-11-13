@@ -237,7 +237,5 @@ class TestParser(TestCase):
 
 
 	def test_varible_assignment(self):
-		#string_model = """query {Advertiser ($name:'adriel') {id, date}}"""
-		#self.assertEqual(graphql.parser(string_model), {'query': {'Advertiser': {'fields': [{'child_fields': [], 'field_name': 'id'}, {'child_fields': [], 'field_name': 'date'}], 'name': 'adriel'}}})
 		string_model = """query {Advertiser ($name:'adriel') {id (user:$name), date}}"""
 		self.assertEqual(graphql.parser(string_model), {'query': {'Advertiser': {'fields': [{'child_fields': [], 'field_name': 'id', 'user': 'adriel'}, {'child_fields': [], 'field_name': 'date'}], 'name': 'adriel'}}})
