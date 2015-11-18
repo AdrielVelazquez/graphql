@@ -1,2 +1,2 @@
 # graphql
-graphql for sqlalchemy
+graphql
